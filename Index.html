@@ -300,7 +300,7 @@
           <!-- Bulk upload -->
           <div class="section-title" style="margin-top:14px">Bulk upload (CSV paste or file)</div>
           <div class="bulk-hint">Format: one product per line → <code>Product Name, SKU, Barcode, Category</code><br>Barcode and Category are optional. Header row is auto-detected and skipped.</div>
-          <textarea class="bulk-area" id="bulk-csv" placeholder="Cherry tomatoes 500g, FNV-00142, 6281234567890, Tomatoes&#10;Baby spinach 200g, FNV-00210, 6289876543210, Leafy Greens&#10;Cucumber (whole), FNV-00318, , Cucumbers" style="margin-top:6px"></textarea>
+          <textarea class="bulk-area" id="bulk-csv" placeholder="Cherry tomatoes 500g, FNV-00142, 6281234567890, Tomatoes&#10;Baby spinach 200g, FNV-00210, 6289876543210, Leafy Greens&#10;&quot;Capsicum Mix (Red, Green, Yellow)&quot;, FNV-00318, 6290000000001, Peppers" style="margin-top:6px"></textarea>
           <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
             <label class="btn btn-ghost" style="cursor:pointer;padding:7px 14px">
               📁 Upload CSV file
@@ -762,15 +762,31 @@ function removeProduct(name, sku) {
 }
 
 // ── Bulk uploader ─────────────────────────────────────────────
+function parseCSVLine(line) {
+  var result = [], cur = '', inQuotes = false;
+  for (var i = 0; i < line.length; i++) {
+    var ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i+1] === '"') { cur += '"'; i++; } // escaped quote
+      else inQuotes = !inQuotes;
+    } else if (ch === ',' && !inQuotes) {
+      result.push(cur.trim()); cur = '';
+    } else {
+      cur += ch;
+    }
+  }
+  result.push(cur.trim());
+  return result;
+}
+
 function parseCSV(text) {
   var lines = text.trim().split('\n');
   var results = [];
   lines.forEach(function(line, idx) {
-    var parts = line.split(',').map(function(p){ return p.trim().replace(/^"|"$/g,''); });
+    var parts = parseCSVLine(line);
     if (parts.length < 2) return;
     // Skip header row
-    if (idx === 0 && isNaN(parts[1]) && parts[1].toLowerCase().includes('sku')) return;
-    if (parts[0].toLowerCase() === 'product name' || parts[0].toLowerCase() === 'productname') return;
+    if (idx === 0 && (parts[0].toLowerCase() === 'product name' || parts[0].toLowerCase() === 'productname')) return;
     if (parts[0] && parts[1]) {
       results.push({name:parts[0], sku:parts[1], barcode:parts[2]||'', category:parts[3]||''});
     }
