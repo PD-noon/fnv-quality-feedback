@@ -176,8 +176,10 @@
       </div>
       <div class="grid-2">
         <div class="field">
-          <label>Product name</label>
-          <select id="q-product" onchange="onProductChange()"><option value="">Select product…</option></select>
+          <label>Product name or barcode</label>
+          <input type="text" id="q-search" placeholder="Type product name or barcode…" oninput="onProductSearch()" autocomplete="off" />
+          <div id="q-suggestions" style="display:none;border:1px solid var(--grey-2);border-radius:var(--radius);background:#fff;max-height:200px;overflow-y:auto;margin-top:2px;z-index:10;position:relative"></div>
+          <input type="hidden" id="q-product" />
         </div>
         <div class="field">
           <label>Inward date</label>
@@ -185,8 +187,10 @@
         </div>
       </div>
       <div class="field">
-        <label>SKU / barcode</label>
+        <label>SKU code</label>
         <div class="sku-chip" id="sku-display">— select a product —</div>
+        <label style="margin-top:8px">Barcode</label>
+        <div class="sku-chip" id="barcode-display">— select a product —</div>
       </div>
       <div class="field">
         <label>Product photo (actual inwarded item)</label>
@@ -285,17 +289,18 @@
 
           <!-- Single add -->
           <div class="section-title" style="margin-top:12px">Add single product</div>
-          <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;align-items:center;margin-bottom:6px">
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:8px;align-items:center;margin-bottom:6px">
             <input type="text" id="new-prod-name" placeholder="Product name" />
-            <input type="text" id="new-prod-sku"  placeholder="SKU" />
+            <input type="text" id="new-prod-sku"  placeholder="SKU code" />
+            <input type="text" id="new-prod-barcode" placeholder="Barcode" />
             <input type="text" id="new-prod-cat"  placeholder="Category" />
             <button class="btn btn-ghost" onclick="addProduct()">+ Add</button>
           </div>
 
           <!-- Bulk upload -->
           <div class="section-title" style="margin-top:14px">Bulk upload (CSV paste or file)</div>
-          <div class="bulk-hint">Format: one product per line → <code>Product Name, SKU, Category</code><br>Category is optional. Header row is auto-detected and skipped.</div>
-          <textarea class="bulk-area" id="bulk-csv" placeholder="Cherry tomatoes 500g, FNV-00142, Tomatoes&#10;Baby spinach 200g, FNV-00210, Leafy Greens&#10;Cucumber (whole), FNV-00318, Cucumbers" style="margin-top:6px"></textarea>
+          <div class="bulk-hint">Format: one product per line → <code>Product Name, SKU, Barcode, Category</code><br>Barcode and Category are optional. Header row is auto-detected and skipped.</div>
+          <textarea class="bulk-area" id="bulk-csv" placeholder="Cherry tomatoes 500g, FNV-00142, 6281234567890, Tomatoes&#10;Baby spinach 200g, FNV-00210, 6289876543210, Leafy Greens&#10;Cucumber (whole), FNV-00318, , Cucumbers" style="margin-top:6px"></textarea>
           <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
             <label class="btn btn-ghost" style="cursor:pointer;padding:7px 14px">
               📁 Upload CSV file
@@ -330,7 +335,7 @@ var bulkParsed  = [];
 // ── Init ─────────────────────────────────────────────────────
 window.onload = function() {
   var params = new URLSearchParams(window.location.search);
-  API = 'https://script.google.com/macros/s/AKfycbyXW24Bkw37JJHctAefzp5blxwwlZb17yL9RsSGJPl4HvlAFLBEOgAAZx0HmzH3pvQiaw/exec';
+  API = 'https://script.google.com/macros/s/AKfycbzIanm1lU_T-YuGllvSjhZlOSA1NEujS41lHKvJy9zDcr7LWE4BNV170TkegUMW6HZfWA/exec';
   var savedEmail = localStorage.getItem('fnv_email') || '';
   if (savedEmail && API) {
     document.getElementById('login-email').value = savedEmail;
@@ -401,12 +406,6 @@ function doLogin() {
 function loadDropdowns() {
   api({action:'catalogue'}).then(function(r) {
     catalogue = r.data || [];
-    var sel = document.getElementById('q-product');
-    sel.innerHTML = '<option value="">Select product…</option>';
-    catalogue.forEach(function(p) {
-      var o = document.createElement('option');
-      o.value = p.name; o.textContent = p.name; sel.appendChild(o);
-    });
     if (!catalogue.length) show('q-warn', 'block');
   });
   api({action:'vendors'}).then(function(r) {
@@ -420,11 +419,33 @@ function loadDropdowns() {
   });
 }
 
-function onProductChange() {
-  var name = document.getElementById('q-product').value;
-  var p = catalogue.find(function(x) { return x.name === name; });
-  document.getElementById('sku-display').textContent = p ? p.sku : '— select a product —';
+function onProductSearch() {
+  var query = document.getElementById('q-search').value.trim().toLowerCase();
+  var box = document.getElementById('q-suggestions');
+  document.getElementById('q-product').value = '';
+  document.getElementById('sku-display').textContent = '— select a product —';
+  document.getElementById('barcode-display').textContent = '— select a product —';
+  if (!query) { box.style.display = 'none'; return; }
+  var matches = catalogue.filter(function(p) {
+    return p.name.toLowerCase().includes(query) || (p.barcode && p.barcode.toLowerCase().includes(query)) || (p.sku && p.sku.toLowerCase().includes(query));
+  });
+  if (!matches.length) { box.style.display = 'none'; return; }
+  box.innerHTML = matches.map(function(p) {
+    return '<div onclick="selectProduct(\'' + p.name.replace(/'/g,"\\'") + '\')" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--grey-1);font-size:13px" onmouseover="this.style.background=\'#f0f0f0\'" onmouseout="this.style.background=\'\'"><strong>' + p.name + '</strong><br><span style="color:var(--grey-4);font-size:11px">SKU: ' + p.sku + (p.barcode ? ' · Barcode: ' + p.barcode : '') + '</span></div>';
+  }).join('');
+  box.style.display = 'block';
 }
+
+function selectProduct(name) {
+  var p = catalogue.find(function(x) { return x.name === name; });
+  document.getElementById('q-search').value = name;
+  document.getElementById('q-product').value = name;
+  document.getElementById('q-suggestions').style.display = 'none';
+  document.getElementById('sku-display').textContent = p ? p.sku : '—';
+  document.getElementById('barcode-display').textContent = (p && p.barcode) ? p.barcode : '—';
+}
+
+function onProductChange() {}
 
 // ── Upload ───────────────────────────────────────────────────
 function handleUpload(input) {
@@ -470,7 +491,9 @@ function submitEntry() {
     btn.disabled = false; btn.innerHTML = '📤 Submit for review';
     if (!r.ok) { flash('q-error', r.error || 'Error saving.'); return; }
     ['q-product','q-vendor','q-date','q-notes'].forEach(function(id) { document.getElementById(id).value = ''; });
-    document.getElementById('preview-img').src = '';
+    document.getElementById('q-search').value = '';
+    document.getElementById('sku-display').textContent = '— select a product —';
+    document.getElementById('barcode-display').textContent = '— select a product —';    document.getElementById('preview-img').src = '';
     document.getElementById('preview-img').style.display = 'none';
     document.getElementById('upload-placeholder').style.display = 'block';
     document.getElementById('upload-zone').classList.remove('has-img');
@@ -671,7 +694,8 @@ function renderProducts() {
   el.innerHTML = catalogue.map(function(p) {
     return '<div class="prod-row">'
       + '<span class="prod-name">'+p.name+'</span>'
-      + '<span class="prod-sku">'+p.sku+'</span>'
+      + '<span class="prod-sku">SKU: '+p.sku+'</span>'
+      + '<span class="prod-sku">Barcode: '+(p.barcode||'—')+'</span>'
       + '<span class="prod-cat">'+(p.category||'—')+'</span>'
       + '<button class="btn btn-danger" style="padding:4px 10px;font-size:12px" onclick="removeProduct(\''+p.name+'\',\''+p.sku+'\')">Remove</button>'
       + '</div>';
@@ -682,12 +706,13 @@ function addProduct() {
   var name = document.getElementById('new-prod-name').value.trim();
   var sku  = document.getElementById('new-prod-sku').value.trim();
   var cat  = document.getElementById('new-prod-cat').value.trim();
+  var barcode = document.getElementById('new-prod-barcode').value.trim();
   hide('prod-error'); hide('prod-confirm');
   if (!name || !sku) { flash('prod-error','Name and SKU are required.'); return; }
-  post({action:'addProduct', email:ME.email, name:name, sku:sku, category:cat})
+  post({action:'addProduct', email:ME.email, name:name, sku:sku, category:cat, barcode:barcode})
     .then(function(r) {
       if (!r.ok) { flash('prod-error', r.error||'Error'); return; }
-      ['new-prod-name','new-prod-sku','new-prod-cat'].forEach(function(id){ document.getElementById(id).value=''; });
+      ['new-prod-name','new-prod-sku','new-prod-cat','new-prod-barcode'].forEach(function(id){ document.getElementById(id).value=''; });
       flash('prod-confirm','✓ Product added.');
       loadAll();
     });
@@ -710,7 +735,7 @@ function parseCSV(text) {
     if (idx === 0 && isNaN(parts[1]) && parts[1].toLowerCase().includes('sku')) return;
     if (parts[0].toLowerCase() === 'product name' || parts[0].toLowerCase() === 'productname') return;
     if (parts[0] && parts[1]) {
-      results.push({name:parts[0], sku:parts[1], category:parts[2]||''});
+      results.push({name:parts[0], sku:parts[1], barcode:parts[2]||'', category:parts[3]||''});
     }
   });
   return results;
@@ -733,7 +758,7 @@ function previewBulk() {
   if (!bulkParsed.length) { el.innerHTML = '<div style="font-size:13px;color:var(--grey-4);margin-top:8px">Nothing parsed — check format.</div>'; return; }
   el.innerHTML = '<div style="font-size:12px;color:var(--grey-4);margin:8px 0 4px">'+bulkParsed.length+' products ready to upload:</div>'
     + bulkParsed.map(function(p) {
-      return '<span class="bulk-tag">'+p.name+' <span style="opacity:.7">'+p.sku+'</span></span>';
+      return '<span class="bulk-tag">'+p.name+' <span style="opacity:.7">'+p.sku+(p.barcode?' · '+p.barcode:'')+'</span></span>';
     }).join('');
 }
 
