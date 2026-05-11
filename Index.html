@@ -335,7 +335,7 @@ var bulkParsed  = [];
 // ── Init ─────────────────────────────────────────────────────
 window.onload = function() {
   var params = new URLSearchParams(window.location.search);
-  API = 'https://script.google.com/macros/s/AKfycbzIanm1lU_T-YuGllvSjhZlOSA1NEujS41lHKvJy9zDcr7LWE4BNV170TkegUMW6HZfWA/exec';
+  API = 'https://script.google.com/macros/s/AKfycbxkIsrkkow3PgYr2l-YkxRuOahcW3LTbGtORRLSDGKw5zbNKL4mbfBudjG9ALHNhKKr0A/exec';
   var savedEmail = localStorage.getItem('fnv_email') || '';
   if (savedEmail && API) {
     document.getElementById('login-email').value = savedEmail;
@@ -519,7 +519,17 @@ function loadAll() {
     catalogue = r.data || []; renderProducts();
   });
   api({action:'vendors'}).then(function(r) {
-    vendors = r.data || []; renderVendorTags();
+    vendors = r.data || [];
+    renderVendorTags();
+    // also refresh the quality-side vendor dropdown
+    var sel = document.getElementById('q-vendor');
+    if (sel) {
+      sel.innerHTML = '<option value="">Select vendor…</option>';
+      vendors.forEach(function(v) {
+        var o = document.createElement('option');
+        o.value = v; o.textContent = v; sel.appendChild(o);
+      });
+    }
   });
   api({action:'config', email:ME.email}).then(function(r) {
     var cfg = r.data || {};
