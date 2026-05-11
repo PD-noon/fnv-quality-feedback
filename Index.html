@@ -183,7 +183,7 @@
         </div>
         <div class="field">
           <label>Inward date</label>
-          <input type="text" id="q-date" placeholder="e.g. 08 May 2026" />
+          <input type="date" id="q-date" />
         </div>
       </div>
       <div class="field">
@@ -404,10 +404,30 @@ function doLogin() {
 
 // ── Dropdowns ─────────────────────────────────────────────────
 function loadDropdowns() {
+  // Set today's date as default
+  var today = new Date();
+  var yyyy = today.getFullYear();
+  var mm = String(today.getMonth() + 1).padStart(2, '0');
+  var dd = String(today.getDate()).padStart(2, '0');
+  document.getElementById('q-date').value = yyyy + '-' + mm + '-' + dd;
+
+  // Show loading hint in search box
+  var searchBox = document.getElementById('q-search');
+  searchBox.placeholder = 'Loading products…';
+  searchBox.disabled = true;
+
   api({action:'catalogue'}).then(function(r) {
     catalogue = r.data || [];
+    searchBox.disabled = false;
+    searchBox.placeholder = catalogue.length
+      ? 'Type product name, SKU or barcode…'
+      : 'No products yet — ask commercial to add';
     if (!catalogue.length) show('q-warn', 'block');
+  }).catch(function() {
+    searchBox.disabled = false;
+    searchBox.placeholder = 'Error loading — refresh and try again';
   });
+
   api({action:'vendors'}).then(function(r) {
     vendors = r.data || [];
     var sel = document.getElementById('q-vendor');
@@ -490,8 +510,15 @@ function submitEntry() {
   }).then(function(r) {
     btn.disabled = false; btn.innerHTML = '📤 Submit for review';
     if (!r.ok) { flash('q-error', r.error || 'Error saving.'); return; }
-    ['q-product','q-vendor','q-date','q-notes'].forEach(function(id) { document.getElementById(id).value = ''; });
+    ['q-vendor','q-notes'].forEach(function(id) { document.getElementById(id).value = ''; });
+    document.getElementById('q-product').value = '';
     document.getElementById('q-search').value = '';
+    // Reset date back to today
+    var today = new Date();
+    var yyyy = today.getFullYear();
+    var mm = String(today.getMonth() + 1).padStart(2, '0');
+    var dd = String(today.getDate()).padStart(2, '0');
+    document.getElementById('q-date').value = yyyy + '-' + mm + '-' + dd;
     document.getElementById('sku-display').textContent = '— select a product —';
     document.getElementById('barcode-display').textContent = '— select a product —';    document.getElementById('preview-img').src = '';
     document.getElementById('preview-img').style.display = 'none';
