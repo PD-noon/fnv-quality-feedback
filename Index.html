@@ -337,7 +337,7 @@ var bulkParsed  = [];
 // ── Init ─────────────────────────────────────────────────────
 window.onload = function() {
   var params = new URLSearchParams(window.location.search);
-  API = 'https://script.google.com/macros/s/AKfycbxkIsrkkow3PgYr2l-YkxRuOahcW3LTbGtORRLSDGKw5zbNKL4mbfBudjG9ALHNhKKr0A/exec';
+  API = 'https://script.google.com/macros/s/AKfycbzIosJCKR2yt6GSERU4yqGUwS0NzEF-_03bhdMnCawcKTvt261Ipa9dDNLnaN_uGZ6XFw/exec';
   var savedEmail = localStorage.getItem('fnv_email') || '';
   if (savedEmail && API) {
     document.getElementById('login-email').value = savedEmail;
@@ -613,13 +613,13 @@ function renderPending() {
       + '<div class="card-meta" style="flex:1;min-width:0">'
       + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">'
       + '<h3>'+s.Product+'</h3><span class="badge b-pending">Pending</span></div>'
-      + '<p>'+s.Vendor+' · SKU: '+s.SKU+' · '+s.InwardDate+'</p>'
+      + '<p>'+s.Vendor+' · SKU: '+s.SKU+' · '+fmtDate(s.InwardDate)+'</p>'
       + (s.Notes?'<div class="qnote">'+s.Notes+'</div>':'')
       + '</div></div>'
       + (isExp ? '<div class="expand-body">'
         + (s.ImageURL?'<img src="'+s.ImageURL+'" class="review-img" alt="'+s.Product+'" />':'')
         + '<div class="field"><label>Feedback to quality team</label>'
-        + '<textarea id="fb-'+s.ID+'" style="min-height:60px" placeholder="e.g. Retake on white background">'+s.feedback_val+'</textarea></div>'
+        + '<textarea id="fb-'+s.ID+'" style="min-height:60px" placeholder="e.g. Retake on white background">'+(s.feedback_val||s.Feedback||'')+'</textarea></div>'
         + '<div class="action-row">'
         + '<button class="btn btn-approve" onclick="setStatus(\''+s.ID+'\',\'approved\')">✓ Approve for app</button>'
         + '<button class="btn btn-reject"  onclick="setStatus(\''+s.ID+'\',\'rejected\')">↩ Request retake</button>'
@@ -643,7 +643,7 @@ function renderReviewed() {
       + '<strong style="font-size:14px">'+s.Product+'</strong>'
       + '<span class="badge '+(approved?'b-approved':'b-rejected')+'">'+(approved?'Approved':'Needs retake')+'</span>'
       + '</div>'
-      + '<p style="font-size:12px;color:var(--grey-4);margin:3px 0 6px">'+s.Vendor+' · SKU: '+s.SKU+' · Reviewed '+(s.ReviewedAt||'—')+'</p>'
+      + '<p style="font-size:12px;color:var(--grey-4);margin:3px 0 6px">'+s.Vendor+' · SKU: '+s.SKU+' · Reviewed '+fmtDate(s.ReviewedAt)+'</p>'
       + (s.Feedback?'<div style="font-size:12px;color:var(--grey-4);background:var(--grey-1);border-radius:6px;padding:6px 10px;margin-bottom:8px">💬 '+s.Feedback+'</div>':'')
       + (approved ? '<div style="display:flex;gap:8px;flex-wrap:wrap">'
           + '<button class="btn btn-blue" onclick="downloadImage(\''+s.ID+'\')">⬇ Download image</button>'
@@ -653,7 +653,12 @@ function renderReviewed() {
   }).join('');
 }
 
-function toggleExpand(id) {
+function fmtDate(d) {
+  if (!d) return '—';
+  var dt = new Date(d);
+  if (isNaN(dt)) return d;
+  return dt.toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'});
+}
   expanded = expanded === id ? null : id;
   renderPending();
 }
