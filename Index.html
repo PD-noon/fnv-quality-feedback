@@ -177,9 +177,11 @@
       <div class="grid-2">
         <div class="field">
           <label>Product name or barcode</label>
-          <input type="text" id="q-search" placeholder="Type product name or barcode…" oninput="onProductSearch()" autocomplete="off" />
-          <div id="q-suggestions" style="display:none;border:1px solid var(--grey-2);border-radius:var(--radius);background:#fff;max-height:200px;overflow-y:auto;margin-top:2px;z-index:10;position:relative"></div>
-          <input type="hidden" id="q-product" />
+          <input type="text" id="q-search" placeholder="Loading products…" oninput="onProductSearch()" autocomplete="off" disabled />
+          <select id="q-product" size="1" onchange="onProductSelect()" style="margin-top:6px;width:100%">
+            <option value="">— select a product —</option>
+          </select>
+          <div id="q-suggestions" style="display:none"></div>
         </div>
         <div class="field">
           <label>Inward date</label>
@@ -420,8 +422,9 @@ function loadDropdowns() {
     catalogue = r.data || [];
     searchBox.disabled = false;
     searchBox.placeholder = catalogue.length
-      ? 'Type product name, SKU or barcode…'
+      ? 'Filter by name, SKU or barcode…'
       : 'No products yet — ask commercial to add';
+    populateProductSelect('');
     if (!catalogue.length) show('q-warn', 'block');
   }).catch(function() {
     searchBox.disabled = false;
@@ -439,30 +442,43 @@ function loadDropdowns() {
   });
 }
 
+function populateProductSelect(filter) {
+  var sel = document.getElementById('q-product');
+  var filtered = filter
+    ? catalogue.filter(function(p) {
+        var q = filter.toLowerCase();
+        return p.name.toLowerCase().includes(q)
+          || (p.sku && p.sku.toLowerCase().includes(q))
+          || (p.barcode && String(p.barcode).toLowerCase().includes(q));
+      })
+    : catalogue;
+  sel.innerHTML = '<option value="">— select a product —</option>';
+  filtered.forEach(function(p) {
+    var o = document.createElement('option');
+    o.value = p.name;
+    o.textContent = p.name + (p.barcode ? ' [' + p.barcode + ']' : '');
+    sel.appendChild(o);
+  });
+}
+
 function onProductSearch() {
-  var query = document.getElementById('q-search').value.trim().toLowerCase();
-  var box = document.getElementById('q-suggestions');
+  var query = document.getElementById('q-search').value.trim();
   document.getElementById('q-product').value = '';
   document.getElementById('sku-display').textContent = '— select a product —';
   document.getElementById('barcode-display').textContent = '— select a product —';
-  if (!query) { box.style.display = 'none'; return; }
-  var matches = catalogue.filter(function(p) {
-    return p.name.toLowerCase().includes(query) || (p.barcode && p.barcode.toLowerCase().includes(query)) || (p.sku && p.sku.toLowerCase().includes(query));
-  });
-  if (!matches.length) { box.style.display = 'none'; return; }
-  box.innerHTML = matches.map(function(p) {
-    return '<div onclick="selectProduct(\'' + p.name.replace(/'/g,"\\'") + '\')" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--grey-1);font-size:13px" onmouseover="this.style.background=\'#f0f0f0\'" onmouseout="this.style.background=\'\'"><strong>' + p.name + '</strong><br><span style="color:var(--grey-4);font-size:11px">SKU: ' + p.sku + (p.barcode ? ' · Barcode: ' + p.barcode : '') + '</span></div>';
-  }).join('');
-  box.style.display = 'block';
+  populateProductSelect(query);
+}
+
+function onProductSelect() {
+  var name = document.getElementById('q-product').value;
+  var p = catalogue.find(function(x) { return x.name === name; });
+  document.getElementById('sku-display').textContent = p ? p.sku : '— select a product —';
+  document.getElementById('barcode-display').textContent = (p && p.barcode) ? p.barcode : '—';
 }
 
 function selectProduct(name) {
-  var p = catalogue.find(function(x) { return x.name === name; });
-  document.getElementById('q-search').value = name;
   document.getElementById('q-product').value = name;
-  document.getElementById('q-suggestions').style.display = 'none';
-  document.getElementById('sku-display').textContent = p ? p.sku : '—';
-  document.getElementById('barcode-display').textContent = (p && p.barcode) ? p.barcode : '—';
+  onProductSelect();
 }
 
 function onProductChange() {}
@@ -513,6 +529,7 @@ function submitEntry() {
     ['q-vendor','q-notes'].forEach(function(id) { document.getElementById(id).value = ''; });
     document.getElementById('q-product').value = '';
     document.getElementById('q-search').value = '';
+    populateProductSelect('');
     // Reset date back to today
     var today = new Date();
     var yyyy = today.getFullYear();
